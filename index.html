@@ -142,15 +142,15 @@
 
     <div class="row tight" style="margin-top:10px">
       <div style="flex:3">
-        <label>Not in the list? Special request</label>
-        <input id="special" placeholder="e.g. Kopi-C siew dai, extra hot" autocomplete="off">
+        <label>“Others” — drink not in the dropdown</label>
+        <input id="special" placeholder="e.g. Kopi-C, Bandung, Horlicks" autocomplete="off">
       </div>
       <div style="flex:.7">
         <label>Qty</label>
         <input id="sqty" type="number" min="1" value="1">
       </div>
       <div style="flex:1">
-        <button class="btn-lite" id="addSpecial" style="width:100%">+ Add request</button>
+        <button class="btn-lite" id="addSpecial" style="width:100%">+ Add other</button>
       </div>
     </div>
 
@@ -205,7 +205,7 @@ if (USING_SB) {
 
 /* ---------- local fallback store ---------- */
 const LS = window.localStorage;
-const LK = {drinks:"cc_drinks", food:"cc_food", orders:"cc_orders"};
+const LK = {drinks:"cc_drinks", food:"cc_food", orders:"cc_orders", prefs:"cc_prefs"};
 const lsGet = (k,d)=>{ try{const v=LS.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;} };
 const lsSet = (k,v)=>{ try{LS.setItem(k,JSON.stringify(v));}catch(e){} };
 
@@ -260,11 +260,21 @@ const DB = {
   async clearOrders(){
     if(sb){ const {error}=await sb.from("orders").delete().neq("id","00000000-0000-0000-0000-000000000000"); if(error)throw error; return; }
     lsSet(LK.orders,[]);
+  },
+  async prefs(){
+    if(sb){ const {data,error}=await sb.from("preferences").select("person,drink,name,count"); if(error)throw error; return data; }
+    return lsGet(LK.prefs,[]);
+  },
+  async bumpPrefs(rows){ // rows: [{person,drink,name,count}] — absolute counts
+    if(sb){ const {error}=await sb.from("preferences").upsert(rows,{onConflict:"person,drink"}); if(error)throw error; return; }
+    const a=lsGet(LK.prefs,[]);
+    rows.forEach(r=>{ const m=a.find(x=>x.person===r.person&&x.drink===r.drink); if(m){m.count=r.count;m.name=r.name;} else a.push({...r}); });
+    lsSet(LK.prefs,a);
   }
 };
 
 /* ---------- in-memory cache ---------- */
-let drinks=[], food=[], orders=[];
+let drinks=[], food=[], orders=[], prefs=[];
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -275,7 +285,7 @@ let draftLines=[], draftExtras=[];
 
 async function refreshAll(){
   try{
-    [drinks,food,orders]=await Promise.all([DB.drinks(),DB.extras(),DB.orders()]);
+    [drinks,food,orders,prefs]=await Promise.all([DB.drinks(),DB.extras(),DB.orders(),DB.prefs()]);
     renderMenu(); renderDrinkSelect(); renderFoodToggles(); renderNameList(); renderOrders(); renderSummary();
   }catch(e){ hint("Sync error: "+(e.message||e)); }
 }
@@ -312,10 +322,9 @@ async function addFood(){
 /* ---------- MEMORY / SUGGESTION ---------- */
 function usualFor(name){
   const k=keyName(name); if(!k)return null;
-  const tally={};
-  orders.forEach(o=>{ if(keyName(o.name)===k) o.lines.forEach(l=>{ tally[l.drink]=(tally[l.drink]||0)+(l.qty||1); }); });
+  // read from the persistent preferences table (survives clearing orders)
   let best=null,bestN=0;
-  Object.keys(tally).forEach(d=>{ if(tally[d]>bestN && drinks.indexOf(d)!==-1){bestN=tally[d];best=d;} });
+  prefs.forEach(p=>{ if(p.person===k && p.count>bestN && drinks.indexOf(p.drink)!==-1){ bestN=p.count; best=p.drink; } });
   return best;
 }
 function orderedDrinks(name){
@@ -324,15 +333,20 @@ function orderedDrinks(name){
   return [{d:u,star:true}].concat(drinks.filter(d=>d!==u).map(d=>({d,star:false})));
 }
 function knownNames(){
-  const m={}; orders.forEach(o=>{ const k=keyName(o.name); if(k && !m[k]) m[k]=o.name; }); return Object.values(m).sort();
+  const m={};
+  orders.forEach(o=>{ const k=keyName(o.name); if(k && !m[k]) m[k]=o.name; });
+  prefs.forEach(p=>{ if(p.person && !m[p.person]) m[p.person]=p.name||p.person; }); // remembered people persist
+  return Object.values(m).sort();
 }
 
+const OTHERS="__OTHERS__";
 function renderDrinkSelect(){
   const sel=$("drink"), name=$("name").value, list=orderedDrinks(name);
   sel.innerHTML="";
-  if(!list.length){ const o=document.createElement("option"); o.value=""; o.textContent="— add drinks in the menu —"; sel.appendChild(o); return; }
   list.forEach(item=>{ const o=document.createElement("option"); o.value=item.d;
     o.textContent=(item.star?"★ ":"")+item.d+(item.star?"  (usual)":""); sel.appendChild(o); });
+  // always offer "Others" — the drink is then named in the box below
+  const oo=document.createElement("option"); oo.value=OTHERS; oo.textContent="Others (type below)…"; sel.appendChild(oo);
   const u=usualFor(name), banner=$("usual");
   if(u && name.trim()){ banner.style.display="block";
     banner.innerHTML='<span class="star">★</span> '+esc(name.trim())+' usually gets <b>'+esc(u)+'</b> — pre-selected below.';
@@ -363,13 +377,14 @@ function renderLineChips(){
 function addLine(){
   const d=$("drink").value, q=parseInt($("qty").value,10)||1;
   if(!d){ hint("Add a drink to the menu first."); return; }
-  const ex=draftLines.filter(l=>l.drink===d)[0];
+  if(d===OTHERS){ addSpecial(); return; } // "Others" → take the drink name from the box below
+  const ex=draftLines.filter(l=>!l.special && l.drink===d)[0];
   if(ex) ex.qty+=q; else draftLines.push({drink:d,qty:q});
   $("qty").value="1"; renderLineChips(); hint("");
 }
 function addSpecial(){
   const v=$("special").value.trim(), q=parseInt($("sqty").value,10)||1;
-  if(!v){ hint("Type a special request first."); return; }
+  if(!v){ hint("Type the drink name in the ‘Others’ box first."); $("special").focus(); return; }
   const ex=draftLines.filter(l=>l.special && l.drink.toLowerCase()===v.toLowerCase())[0];
   if(ex) ex.qty+=q; else draftLines.push({drink:v,qty:q,special:true});
   $("special").value=""; $("sqty").value="1"; renderLineChips(); hint("");
@@ -391,7 +406,7 @@ async function saveOrder(){
   // pull in an un-added dropdown drink or special request so nothing is lost
   const pendingDrink=$("drink").value;
   const pendingSpecial=$("special").value.trim();
-  if(pendingDrink && !draftLines.some(l=>!l.special && l.drink===pendingDrink)){
+  if(pendingDrink && pendingDrink!==OTHERS && !draftLines.some(l=>!l.special && l.drink===pendingDrink)){
     draftLines.push({drink:pendingDrink, qty:parseInt($("qty").value,10)||1});
   }
   if(pendingSpecial){
@@ -412,7 +427,13 @@ async function saveOrder(){
     } else {
       await DB.addOrder(fresh);
     }
-    // update memory (real drinks only)
+    // persist preferences to the DB (after the order is added), so the usual is remembered even after orders are cleared
+    const k=keyName(name);
+    const bumps=fresh.lines.filter(l=>!l.special).map(l=>{
+      const cur=prefs.find(p=>p.person===k && p.drink===l.drink);
+      return {person:k, drink:l.drink, name, count:(cur?cur.count:0)+(l.qty||1)};
+    });
+    if(bumps.length) await DB.bumpPrefs(bumps);
     clearForm(); await refreshAll(); hint("Saved ✓"); setTimeout(()=>hint(""),1500);
   }catch(e){ hint("Save error: "+(e.message||e)); }
   $("saveOrder").disabled=false;
@@ -439,7 +460,7 @@ function renderOrders(){
   box.innerHTML="";
   groups.slice().reverse().forEach(o=>{
     const el=document.createElement("div"); el.className="order";
-    const lines=o.lines.map(l=>'<li'+(l.special?' class="special"':'')+'>'+(l.special?"✎ ":"")+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+(l.special?" (special)":"")+'</li>').join("");
+    const lines=o.lines.map(l=>'<li'+(l.special?' class="special"':'')+'>'+(l.special?"✎ ":"")+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+(l.special?" (other)":"")+'</li>').join("");
     const extras=o.extras.length?'<li class="extras">+ '+o.extras.map(esc).join(", ")+'</li>':'';
     el.innerHTML='<div class="top"><span class="name">'+esc(o.name)+'</span>'+
       '<button class="btn-ghost" data-del="'+o.ids.join(",")+'">remove</button></div>'+
@@ -475,6 +496,7 @@ $("sqty").addEventListener("keydown",e=>{ if(e.key==="Enter") addSpecial(); });
 $("saveOrder").onclick=saveOrder;
 $("clearForm").onclick=clearForm;
 $("name").addEventListener("input",renderDrinkSelect);
+$("drink").addEventListener("change",()=>{ if($("drink").value===OTHERS){ $("special").focus(); hint("Type the drink name in the ‘Others’ box, then + Add other."); } else hint(""); });
 $("qty").addEventListener("keydown",e=>{ if(e.key==="Enter") addLine(); });
 $("refreshBtn").onclick=refreshAll;
 $("clearOrders").onclick=async()=>{ if(confirm("Clear ALL current orders for everyone? (Menu is kept.)")){ await DB.clearOrders(); await refreshAll(); } };
