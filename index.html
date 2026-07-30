@@ -41,6 +41,8 @@
   .chip button{background:none;color:var(--muted);padding:0 4px;font-size:16px;line-height:1}
   .chip button:hover{color:var(--danger)}
   .chip.food{background:#eef2ec}
+  .chip.special{background:#f3ecf7;border-color:#e0cdec}
+  .order .lines li.special{color:#7a4a86;font-style:italic}
   .pill-toggle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;
     border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer;user-select:none}
   .pill-toggle.on{background:var(--brand);color:#fff;border-color:var(--brand)}
@@ -138,6 +140,20 @@
       </div>
     </div>
 
+    <div class="row tight" style="margin-top:10px">
+      <div style="flex:3">
+        <label>Not in the list? Special request</label>
+        <input id="special" placeholder="e.g. Kopi-C siew dai, extra hot" autocomplete="off">
+      </div>
+      <div style="flex:.7">
+        <label>Qty</label>
+        <input id="sqty" type="number" min="1" value="1">
+      </div>
+      <div style="flex:1">
+        <button class="btn-lite" id="addSpecial" style="width:100%">+ Add request</button>
+      </div>
+    </div>
+
     <div class="chips" id="lineChips" style="margin-top:12px"></div>
 
     <div style="margin-top:14px">
@@ -228,6 +244,10 @@ const DB = {
   async addOrder(o){
     if(sb){ const {error}=await sb.from("orders").insert({person:o.name, lines:o.lines, extras:o.extras}); if(error)throw error; return; }
     const a=lsGet(LK.orders,[]); a.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,6), ...o}); lsSet(LK.orders,a);
+  },
+  async updateOrder(id,o){
+    if(sb){ const {error}=await sb.from("orders").update({lines:o.lines, extras:o.extras}).eq("id",id); if(error)throw error; return; }
+    const a=lsGet(LK.orders,[]); const r=a.find(x=>x.id===id); if(r){ r.lines=o.lines; r.extras=o.extras; lsSet(LK.orders,a); }
   },
   async removeOrder(id){
     if(sb){ const {error}=await sb.from("orders").delete().eq("id",id); if(error)throw error; return; }
@@ -329,8 +349,8 @@ function renderFoodToggles(){
 function renderLineChips(){
   const box=$("lineChips"); box.innerHTML="";
   draftLines.forEach((l,i)=>{
-    const c=document.createElement("span"); c.className="chip";
-    c.innerHTML='<span>'+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+'</span>';
+    const c=document.createElement("span"); c.className="chip"+(l.special?" special":"");
+    c.innerHTML='<span>'+(l.special?"✎ ":"")+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+'</span>';
     const b=document.createElement("button"); b.type="button"; b.textContent="×";
     b.onclick=()=>{ draftLines.splice(i,1); renderLineChips(); };
     c.appendChild(b); box.appendChild(c);
@@ -343,18 +363,52 @@ function addLine(){
   if(ex) ex.qty+=q; else draftLines.push({drink:d,qty:q});
   $("qty").value="1"; renderLineChips(); hint("");
 }
+function addSpecial(){
+  const v=$("special").value.trim(), q=parseInt($("sqty").value,10)||1;
+  if(!v){ hint("Type a special request first."); return; }
+  const ex=draftLines.filter(l=>l.special && l.drink.toLowerCase()===v.toLowerCase())[0];
+  if(ex) ex.qty+=q; else draftLines.push({drink:v,qty:q,special:true});
+  $("special").value=""; $("sqty").value="1"; renderLineChips(); hint("");
+}
 function hint(msg){ $("formHint").textContent=msg; }
-function clearForm(){ $("name").value=""; draftLines=[]; draftExtras=[]; $("qty").value="1"; renderLineChips(); renderFoodToggles(); renderDrinkSelect(); hint(""); }
+function clearForm(){ $("name").value=""; draftLines=[]; draftExtras=[]; $("qty").value="1"; $("special").value=""; $("sqty").value="1"; renderLineChips(); renderFoodToggles(); renderDrinkSelect(); hint(""); }
 
+// merge b's lines/extras into a (a is mutated copy); sums qty for same drink+special, unions extras
+function mergeInto(a,b){
+  b.lines.forEach(l=>{
+    const m=a.lines.find(x=>x.drink.toLowerCase()===l.drink.toLowerCase() && !!x.special===!!l.special);
+    if(m) m.qty+=(l.qty||1); else a.lines.push({...l});
+  });
+  b.extras.forEach(e=>{ if(!a.extras.some(x=>x.toLowerCase()===e.toLowerCase())) a.extras.push(e); });
+  return a;
+}
 async function saveOrder(){
   const name=$("name").value.trim();
-  const pending=$("drink").value;
-  if(pending && draftLines.length===0){ draftLines.push({drink:pending, qty:parseInt($("qty").value,10)||1}); }
+  // pull in an un-added dropdown drink or special request so nothing is lost
+  const pendingDrink=$("drink").value;
+  const pendingSpecial=$("special").value.trim();
+  if(pendingDrink && !draftLines.some(l=>!l.special && l.drink===pendingDrink)){
+    draftLines.push({drink:pendingDrink, qty:parseInt($("qty").value,10)||1});
+  }
+  if(pendingSpecial){
+    const q=parseInt($("sqty").value,10)||1;
+    const ex=draftLines.find(l=>l.special && l.drink.toLowerCase()===pendingSpecial.toLowerCase());
+    if(ex) ex.qty+=q; else draftLines.push({drink:pendingSpecial, qty:q, special:true});
+  }
   if(!name){ hint("Enter a name."); return; }
-  if(!draftLines.length){ hint("Add at least one drink."); return; }
+  if(!draftLines.length){ hint("Add a drink or a special request."); return; }
   $("saveOrder").disabled=true;
   try{
-    await DB.addOrder({name, lines:draftLines.slice(), extras:draftExtras.slice()});
+    const fresh={name, lines:draftLines.slice(), extras:draftExtras.slice()};
+    // consolidate: if this person already has an order, merge into it
+    const existing=orders.find(o=>keyName(o.name)===keyName(name));
+    if(existing){
+      const merged=mergeInto({lines:existing.lines.map(x=>({...x})), extras:existing.extras.slice()}, fresh);
+      await DB.updateOrder(existing.id, merged);
+    } else {
+      await DB.addOrder(fresh);
+    }
+    // update memory (real drinks only)
     clearForm(); await refreshAll(); hint("Saved ✓"); setTimeout(()=>hint(""),1500);
   }catch(e){ hint("Save error: "+(e.message||e)); }
   $("saveOrder").disabled=false;
@@ -367,7 +421,7 @@ function renderOrders(){
   box.innerHTML="";
   orders.slice().reverse().forEach(o=>{
     const el=document.createElement("div"); el.className="order";
-    const lines=o.lines.map(l=>'<li>'+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+'</li>').join("");
+    const lines=o.lines.map(l=>'<li'+(l.special?' class="special"':'')+'>'+(l.special?"✎ ":"")+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+(l.special?" (special)":"")+'</li>').join("");
     const extras=o.extras.length?'<li class="extras">+ '+o.extras.map(esc).join(", ")+'</li>':'';
     el.innerHTML='<div class="top"><span class="name">'+esc(o.name)+'</span>'+
       '<button class="btn-ghost" data-del="'+o.id+'">remove</button></div>'+
@@ -397,6 +451,9 @@ $("newDrink").addEventListener("keydown",e=>{ if(e.key==="Enter") addDrink(); })
 $("addFood").onclick=addFood;
 $("newFood").addEventListener("keydown",e=>{ if(e.key==="Enter") addFood(); });
 $("addLine").onclick=addLine;
+$("addSpecial").onclick=addSpecial;
+$("special").addEventListener("keydown",e=>{ if(e.key==="Enter") addSpecial(); });
+$("sqty").addEventListener("keydown",e=>{ if(e.key==="Enter") addSpecial(); });
 $("saveOrder").onclick=saveOrder;
 $("clearForm").onclick=clearForm;
 $("name").addEventListener("input",renderDrinkSelect);
