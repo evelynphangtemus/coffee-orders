@@ -119,7 +119,7 @@
 
   <!-- ORDER FORM -->
   <div class="card">
-    <h2>New order</h2>
+    <h2>New order <button class="btn" id="saveOrderTop" style="padding:6px 12px;font-size:12px">Add order</button></h2>
     <div id="usual" class="usual"></div>
     <div class="row tight">
       <div style="flex:2">
@@ -494,6 +494,7 @@ $("addSpecial").onclick=addSpecial;
 $("special").addEventListener("keydown",e=>{ if(e.key==="Enter") addSpecial(); });
 $("sqty").addEventListener("keydown",e=>{ if(e.key==="Enter") addSpecial(); });
 $("saveOrder").onclick=saveOrder;
+$("saveOrderTop").onclick=saveOrder;
 $("clearForm").onclick=clearForm;
 $("name").addEventListener("input",renderDrinkSelect);
 $("drink").addEventListener("change",()=>{ if($("drink").value===OTHERS){ $("special").focus(); hint("Type the drink name in the ‘Others’ box, then + Add other."); } else hint(""); });
