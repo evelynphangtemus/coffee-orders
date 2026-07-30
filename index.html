@@ -253,6 +253,10 @@ const DB = {
     if(sb){ const {error}=await sb.from("orders").delete().eq("id",id); if(error)throw error; return; }
     lsSet(LK.orders, lsGet(LK.orders,[]).filter(o=>o.id!==id));
   },
+  async removeOrderIds(ids){
+    if(sb){ const {error}=await sb.from("orders").delete().in("id",ids); if(error)throw error; return; }
+    lsSet(LK.orders, lsGet(LK.orders,[]).filter(o=>ids.indexOf(o.id)===-1));
+  },
   async clearOrders(){
     if(sb){ const {error}=await sb.from("orders").delete().neq("id","00000000-0000-0000-0000-000000000000"); if(error)throw error; return; }
     lsSet(LK.orders,[]);
@@ -415,20 +419,34 @@ async function saveOrder(){
 }
 
 /* ---------- ORDERS + SUMMARY ---------- */
+// group rows by person (case-insensitive) into one consolidated order each
+function groupedOrders(){
+  const map=new Map(); // key -> {name, lines, extras, ids:[]}
+  orders.forEach(o=>{
+    const k=keyName(o.name);
+    if(!map.has(k)) map.set(k,{name:o.name, lines:[], extras:[], ids:[]});
+    const g=map.get(k);
+    mergeInto(g, {lines:o.lines, extras:o.extras});
+    g.ids.push(o.id);
+  });
+  return [...map.values()];
+}
 function renderOrders(){
-  const box=$("orders"); $("orderCount").textContent=orders.length?orders.length+" people":"";
-  if(!orders.length){ box.innerHTML='<div class="empty">No orders yet. Add one above.</div>'; return; }
+  const box=$("orders");
+  const groups=groupedOrders();
+  $("orderCount").textContent=groups.length?groups.length+" people":"";
+  if(!groups.length){ box.innerHTML='<div class="empty">No orders yet. Add one above.</div>'; return; }
   box.innerHTML="";
-  orders.slice().reverse().forEach(o=>{
+  groups.slice().reverse().forEach(o=>{
     const el=document.createElement("div"); el.className="order";
     const lines=o.lines.map(l=>'<li'+(l.special?' class="special"':'')+'>'+(l.special?"✎ ":"")+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+(l.special?" (special)":"")+'</li>').join("");
     const extras=o.extras.length?'<li class="extras">+ '+o.extras.map(esc).join(", ")+'</li>':'';
     el.innerHTML='<div class="top"><span class="name">'+esc(o.name)+'</span>'+
-      '<button class="btn-ghost" data-del="'+o.id+'">remove</button></div>'+
+      '<button class="btn-ghost" data-del="'+o.ids.join(",")+'">remove</button></div>'+
       '<ul class="lines">'+lines+extras+'</ul>';
     box.appendChild(el);
   });
-  box.querySelectorAll("[data-del]").forEach(b=>{ b.onclick=async()=>{ await DB.removeOrder(b.getAttribute("data-del")); await refreshAll(); }; });
+  box.querySelectorAll("[data-del]").forEach(b=>{ b.onclick=async()=>{ await DB.removeOrderIds(b.getAttribute("data-del").split(",")); await refreshAll(); }; });
 }
 function renderSummary(){
   const t={};
