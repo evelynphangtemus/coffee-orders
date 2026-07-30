@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coffee Chooser</title>
+<style>
+  :root{
+    --bg:#f6f1ea; --card:#fffdfa; --ink:#2b2119; --muted:#8a7b6b;
+    --line:#e7dccd; --brand:#7a4a24; --brand2:#a9713d; --accent:#c98a3a;
+    --good:#2f7d4f; --danger:#b23b3b; --star:#e0a92e;
+    --shadow:0 2px 10px rgba(70,45,20,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;padding:20px 22px}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px;display:flex;align-items:center;gap:10px}
+  header p{margin:4px 0 0;opacity:.9;font-size:13px}
+  .wrap{max-width:860px;margin:0 auto;padding:18px 16px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 12px;font-size:15px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
+  input,select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:15px;color:var(--ink)}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+  button{cursor:pointer;border:none;border-radius:9px;font-size:14px;font-weight:600;padding:10px 14px;transition:.12s}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.5;cursor:default}
+  .btn{background:var(--brand);color:#fff}
+  .btn:hover{background:#63391b}
+  .btn-lite{background:#efe6d9;color:var(--brand)}
+  .btn-lite:hover{background:#e5d8c6}
+  .btn-ghost{background:transparent;color:var(--muted);padding:6px 8px}
+  .btn-ghost:hover{color:var(--danger)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>*{flex:1;min-width:120px}
+  .row.tight{align-items:flex-end}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#efe6d9;border:1px solid var(--line);
+    border-radius:20px;padding:5px 6px 5px 12px;font-size:13px}
+  .chip button{background:none;color:var(--muted);padding:0 4px;font-size:16px;line-height:1}
+  .chip button:hover{color:var(--danger)}
+  .chip.food{background:#eef2ec}
+  .pill-toggle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;
+    border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer;user-select:none}
+  .pill-toggle.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .star{color:var(--star)}
+  .usual{background:#fff8e9;border:1px dashed var(--star);border-radius:9px;padding:8px 10px;font-size:13px;margin-bottom:10px;display:none}
+  .usual b{color:var(--brand)}
+  .order{border:1px solid var(--line);border-radius:11px;padding:12px;margin-bottom:10px;background:#fff}
+  .order .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .order .name{font-weight:700;font-size:16px}
+  .order .lines{margin:8px 0 0;padding:0;list-style:none}
+  .order .lines li{padding:3px 0;border-top:1px dashed var(--line);font-size:14px}
+  .order .lines li:first-child{border-top:none}
+  .order .extras{color:var(--good);font-size:13px}
+  .empty{color:var(--muted);text-align:center;padding:18px 0;font-size:14px}
+  .totals li{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .totals li:last-child{border-bottom:none}
+  .totals .q{font-weight:700;color:var(--brand)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  details.manage summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:600;list-style:none}
+  details.manage summary::-webkit-details-marker{display:none}
+  details.manage summary::before{content:"▸ ";}
+  details.manage[open] summary::before{content:"▾ ";}
+  .mini{display:flex;gap:8px;margin-top:10px}
+  .mini input{flex:1}
+  .count{font-size:12px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
+  .status{font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;text-transform:none;letter-spacing:0}
+  .status.on{background:#e6f2ea;color:var(--good)}
+  .status.off{background:#fdeaea;color:var(--danger)}
+  .status.local{background:#fbf1de;color:#9a6b1e}
+  .banner{background:#fbf1de;border:1px solid #ecd9b0;color:#7a5a1e;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:13px}
+  .banner code{background:#fff;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  @media(max-width:560px){.row>*{min-width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>☕ Coffee Chooser</h1>
+  <p>Shared order taking. It remembers each person's usual and stars it first next time.</p>
+</header>
+
+<div class="wrap">
+
+  <div id="cfgBanner" class="banner" style="display:none">
+    <b>Not connected to a database yet.</b> The app is running in local-only mode (this browser only).
+    To make it shared across your team, open the file and paste your Supabase <code>URL</code> and <code>anon key</code> into the <code>CONFIG</code> block near the top of the script.
+  </div>
+
+  <!-- MENUS -->
+  <div class="card">
+    <h2>Menu <span class="count" id="menuCount"></span></h2>
+    <details class="manage" id="menuManage">
+      <summary>Manage drinks &amp; extras</summary>
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label>Drinks</label>
+          <div class="mini">
+            <input id="newDrink" placeholder="e.g. Flat White" autocomplete="off">
+            <button class="btn-lite" id="addDrink">Add</button>
+          </div>
+          <div class="chips" id="drinkChips"></div>
+        </div>
+        <div>
+          <label>Extras / food</label>
+          <div class="mini">
+            <input id="newFood" placeholder="e.g. Poached eggs" autocomplete="off">
+            <button class="btn-lite" id="addFood">Add</button>
+          </div>
+          <div class="chips" id="foodChips"></div>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ORDER FORM -->
+  <div class="card">
+    <h2>New order</h2>
+    <div id="usual" class="usual"></div>
+    <div class="row tight">
+      <div style="flex:2">
+        <label>Name</label>
+        <input id="name" list="nameList" placeholder="Who's this for?" autocomplete="off">
+        <datalist id="nameList"></datalist>
+      </div>
+      <div style="flex:2">
+        <label>Drink</label>
+        <select id="drink"></select>
+      </div>
+      <div style="flex:.7">
+        <label>Qty</label>
+        <input id="qty" type="number" min="1" value="1">
+      </div>
+      <div style="flex:1">
+        <button class="btn-lite" id="addLine" style="width:100%">+ Add drink</button>
+      </div>
+    </div>
+
+    <div class="chips" id="lineChips" style="margin-top:12px"></div>
+
+    <div style="margin-top:14px">
+      <label>Extras</label>
+      <div class="chips" id="foodToggles"></div>
+      <div class="hint" id="noFoodHint" style="display:none">No extras in the menu yet — add some under “Manage drinks &amp; extras”.</div>
+    </div>
+
+    <div class="bar">
+      <button class="btn" id="saveOrder" style="flex:2">Add order</button>
+      <button class="btn-ghost" id="clearForm">Clear</button>
+    </div>
+    <div class="hint" id="formHint"></div>
+  </div>
+
+  <!-- ORDERS -->
+  <div class="card">
+    <h2>Orders <span class="count" id="orderCount"></span> <button class="btn-ghost" id="refreshBtn" title="Refresh from database">↻ Sync</button></h2>
+    <div id="orders"></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="card" id="summaryCard" style="display:none">
+    <h2>Kitchen summary</h2>
+    <ul class="totals" id="totals" style="list-style:none;margin:0;padding:0"></ul>
+    <div class="bar">
+      <button class="btn-lite" id="copyBtn">Copy summary</button>
+      <button class="btn-ghost" id="clearOrders">Clear all orders</button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+/* ============================================================
+   CONFIG — paste your Supabase values between the quotes.
+   Find them in Supabase: Project Settings ▸ API
+   ============================================================ */
+const SUPABASE_URL      = "https://ppheguszetoeukmbibcw.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_15IJFkI8hl0snHKM_fsCFg_xMDuDRpE";
+/* ============================================================ */
+
+let sb = null;
+const USING_SB = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+if (USING_SB) {
+  const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+/* ---------- local fallback store ---------- */
+const LS = window.localStorage;
+const LK = {drinks:"cc_drinks", food:"cc_food", orders:"cc_orders"};
+const lsGet = (k,d)=>{ try{const v=LS.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;} };
+const lsSet = (k,v)=>{ try{LS.setItem(k,JSON.stringify(v));}catch(e){} };
+
+/* ---------- DATA LAYER (async, works for both backends) ----------
+   orders row shape: { id, person, lines(jsonb), extras(jsonb), created_at } */
+const DB = {
+  async drinks(){
+    if(sb){ const {data,error}=await sb.from("drinks").select("name").order("name"); if(error)throw error; return data.map(r=>r.name); }
+    return lsGet(LK.drinks,[]);
+  },
+  async addDrink(name){
+    if(sb){ const {error}=await sb.from("drinks").insert({name}); if(error && error.code!=="23505")throw error; return; }
+    const a=lsGet(LK.drinks,[]); if(!a.some(d=>d.toLowerCase()===name.toLowerCase())){a.push(name);lsSet(LK.drinks,a);}
+  },
+  async removeDrink(name){
+    if(sb){ const {error}=await sb.from("drinks").delete().eq("name",name); if(error)throw error; return; }
+    lsSet(LK.drinks, lsGet(LK.drinks,[]).filter(d=>d!==name));
+  },
+  async extras(){
+    if(sb){ const {data,error}=await sb.from("extras").select("name").order("name"); if(error)throw error; return data.map(r=>r.name); }
+    return lsGet(LK.food,[]);
+  },
+  async addExtra(name){
+    if(sb){ const {error}=await sb.from("extras").insert({name}); if(error && error.code!=="23505")throw error; return; }
+    const a=lsGet(LK.food,[]); if(!a.some(f=>f.toLowerCase()===name.toLowerCase())){a.push(name);lsSet(LK.food,a);}
+  },
+  async removeExtra(name){
+    if(sb){ const {error}=await sb.from("extras").delete().eq("name",name); if(error)throw error; return; }
+    lsSet(LK.food, lsGet(LK.food,[]).filter(f=>f!==name));
+  },
+  async orders(){
+    if(sb){ const {data,error}=await sb.from("orders").select("*").order("created_at"); if(error)throw error;
+      return data.map(r=>({id:r.id, name:r.person, lines:r.lines||[], extras:r.extras||[]})); }
+    return lsGet(LK.orders,[]);
+  },
+  async addOrder(o){
+    if(sb){ const {error}=await sb.from("orders").insert({person:o.name, lines:o.lines, extras:o.extras}); if(error)throw error; return; }
+    const a=lsGet(LK.orders,[]); a.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,6), ...o}); lsSet(LK.orders,a);
+  },
+  async removeOrder(id){
+    if(sb){ const {error}=await sb.from("orders").delete().eq("id",id); if(error)throw error; return; }
+    lsSet(LK.orders, lsGet(LK.orders,[]).filter(o=>o.id!==id));
+  },
+  async clearOrders(){
+    if(sb){ const {error}=await sb.from("orders").delete().neq("id","00000000-0000-0000-0000-000000000000"); if(error)throw error; return; }
+    lsSet(LK.orders,[]);
+  }
+};
+
+/* ---------- in-memory cache ---------- */
+let drinks=[], food=[], orders=[];
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const keyName=n=>(n||"").trim().toLowerCase();
+
+/* form draft */
+let draftLines=[], draftExtras=[];
+
+async function refreshAll(){
+  try{
+    [drinks,food,orders]=await Promise.all([DB.drinks(),DB.extras(),DB.orders()]);
+    renderMenu(); renderDrinkSelect(); renderFoodToggles(); renderNameList(); renderOrders(); renderSummary();
+  }catch(e){ hint("Sync error: "+(e.message||e)); }
+}
+
+/* ---------- MENU ---------- */
+function renderMenu(){
+  $("menuCount").textContent=drinks.length+" drinks · "+food.length+" extras";
+  const dc=$("drinkChips"); dc.innerHTML=drinks.length?"":'<span class="hint">No drinks yet.</span>';
+  drinks.forEach(d=>{
+    const c=document.createElement("span"); c.className="chip"; c.innerHTML='<span>'+esc(d)+'</span>';
+    const b=document.createElement("button"); b.type="button"; b.textContent="×";
+    b.onclick=async()=>{ await DB.removeDrink(d); await refreshAll(); };
+    c.appendChild(b); dc.appendChild(c);
+  });
+  const fc=$("foodChips"); fc.innerHTML=food.length?"":'<span class="hint">No extras yet.</span>';
+  food.forEach(f=>{
+    const c=document.createElement("span"); c.className="chip food"; c.innerHTML='<span>'+esc(f)+'</span>';
+    const b=document.createElement("button"); b.type="button"; b.textContent="×";
+    b.onclick=async()=>{ draftExtras=draftExtras.filter(x=>x!==f); await DB.removeExtra(f); await refreshAll(); };
+    c.appendChild(b); fc.appendChild(c);
+  });
+}
+async function addDrink(){
+  const v=$("newDrink").value.trim(); if(!v)return;
+  if(drinks.some(d=>d.toLowerCase()===v.toLowerCase())){$("newDrink").value="";return;}
+  $("newDrink").value=""; await DB.addDrink(v); await refreshAll();
+}
+async function addFood(){
+  const v=$("newFood").value.trim(); if(!v)return;
+  if(food.some(f=>f.toLowerCase()===v.toLowerCase())){$("newFood").value="";return;}
+  $("newFood").value=""; await DB.addExtra(v); await refreshAll();
+}
+
+/* ---------- MEMORY / SUGGESTION ---------- */
+function usualFor(name){
+  const k=keyName(name); if(!k)return null;
+  const tally={};
+  orders.forEach(o=>{ if(keyName(o.name)===k) o.lines.forEach(l=>{ tally[l.drink]=(tally[l.drink]||0)+(l.qty||1); }); });
+  let best=null,bestN=0;
+  Object.keys(tally).forEach(d=>{ if(tally[d]>bestN && drinks.indexOf(d)!==-1){bestN=tally[d];best=d;} });
+  return best;
+}
+function orderedDrinks(name){
+  const u=usualFor(name);
+  if(!u) return drinks.map(d=>({d,star:false}));
+  return [{d:u,star:true}].concat(drinks.filter(d=>d!==u).map(d=>({d,star:false})));
+}
+function knownNames(){
+  const m={}; orders.forEach(o=>{ const k=keyName(o.name); if(k && !m[k]) m[k]=o.name; }); return Object.values(m).sort();
+}
+
+function renderDrinkSelect(){
+  const sel=$("drink"), name=$("name").value, list=orderedDrinks(name);
+  sel.innerHTML="";
+  if(!list.length){ const o=document.createElement("option"); o.value=""; o.textContent="— add drinks in the menu —"; sel.appendChild(o); return; }
+  list.forEach(item=>{ const o=document.createElement("option"); o.value=item.d;
+    o.textContent=(item.star?"★ ":"")+item.d+(item.star?"  (usual)":""); sel.appendChild(o); });
+  const u=usualFor(name), banner=$("usual");
+  if(u && name.trim()){ banner.style.display="block";
+    banner.innerHTML='<span class="star">★</span> '+esc(name.trim())+' usually gets <b>'+esc(u)+'</b> — pre-selected below.';
+  } else banner.style.display="none";
+}
+function renderNameList(){ const dl=$("nameList"); dl.innerHTML=""; knownNames().forEach(n=>{const o=document.createElement("option");o.value=n;dl.appendChild(o);}); }
+
+/* ---------- ORDER FORM ---------- */
+function renderFoodToggles(){
+  const box=$("foodToggles"); box.innerHTML=""; $("noFoodHint").style.display=food.length?"none":"block";
+  food.forEach(f=>{
+    const on=draftExtras.indexOf(f)!==-1;
+    const b=document.createElement("span"); b.className="pill-toggle"+(on?" on":""); b.textContent=(on?"✓ ":"")+f;
+    b.onclick=()=>{ const i=draftExtras.indexOf(f); if(i===-1)draftExtras.push(f); else draftExtras.splice(i,1); renderFoodToggles(); };
+    box.appendChild(b);
+  });
+}
+function renderLineChips(){
+  const box=$("lineChips"); box.innerHTML="";
+  draftLines.forEach((l,i)=>{
+    const c=document.createElement("span"); c.className="chip";
+    c.innerHTML='<span>'+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+'</span>';
+    const b=document.createElement("button"); b.type="button"; b.textContent="×";
+    b.onclick=()=>{ draftLines.splice(i,1); renderLineChips(); };
+    c.appendChild(b); box.appendChild(c);
+  });
+}
+function addLine(){
+  const d=$("drink").value, q=parseInt($("qty").value,10)||1;
+  if(!d){ hint("Add a drink to the menu first."); return; }
+  const ex=draftLines.filter(l=>l.drink===d)[0];
+  if(ex) ex.qty+=q; else draftLines.push({drink:d,qty:q});
+  $("qty").value="1"; renderLineChips(); hint("");
+}
+function hint(msg){ $("formHint").textContent=msg; }
+function clearForm(){ $("name").value=""; draftLines=[]; draftExtras=[]; $("qty").value="1"; renderLineChips(); renderFoodToggles(); renderDrinkSelect(); hint(""); }
+
+async function saveOrder(){
+  const name=$("name").value.trim();
+  const pending=$("drink").value;
+  if(pending && draftLines.length===0){ draftLines.push({drink:pending, qty:parseInt($("qty").value,10)||1}); }
+  if(!name){ hint("Enter a name."); return; }
+  if(!draftLines.length){ hint("Add at least one drink."); return; }
+  $("saveOrder").disabled=true;
+  try{
+    await DB.addOrder({name, lines:draftLines.slice(), extras:draftExtras.slice()});
+    clearForm(); await refreshAll(); hint("Saved ✓"); setTimeout(()=>hint(""),1500);
+  }catch(e){ hint("Save error: "+(e.message||e)); }
+  $("saveOrder").disabled=false;
+}
+
+/* ---------- ORDERS + SUMMARY ---------- */
+function renderOrders(){
+  const box=$("orders"); $("orderCount").textContent=orders.length?orders.length+" people":"";
+  if(!orders.length){ box.innerHTML='<div class="empty">No orders yet. Add one above.</div>'; return; }
+  box.innerHTML="";
+  orders.slice().reverse().forEach(o=>{
+    const el=document.createElement("div"); el.className="order";
+    const lines=o.lines.map(l=>'<li>'+(l.qty>1?l.qty+"× ":"")+esc(l.drink)+'</li>').join("");
+    const extras=o.extras.length?'<li class="extras">+ '+o.extras.map(esc).join(", ")+'</li>':'';
+    el.innerHTML='<div class="top"><span class="name">'+esc(o.name)+'</span>'+
+      '<button class="btn-ghost" data-del="'+o.id+'">remove</button></div>'+
+      '<ul class="lines">'+lines+extras+'</ul>';
+    box.appendChild(el);
+  });
+  box.querySelectorAll("[data-del]").forEach(b=>{ b.onclick=async()=>{ await DB.removeOrder(b.getAttribute("data-del")); await refreshAll(); }; });
+}
+function renderSummary(){
+  const t={};
+  orders.forEach(o=>{ o.lines.forEach(l=>t[l.drink]=(t[l.drink]||0)+(l.qty||1)); o.extras.forEach(e=>t["＋ "+e]=(t["＋ "+e]||0)+1); });
+  const keys=Object.keys(t); $("summaryCard").style.display=keys.length?"block":"none";
+  const ul=$("totals"); ul.innerHTML="";
+  keys.sort().forEach(k=>{ const li=document.createElement("li"); li.innerHTML='<span>'+esc(k)+'</span><span class="q">'+t[k]+'</span>'; ul.appendChild(li); });
+}
+function summaryText(){
+  const lines=["Coffee run — "+orders.length+" people",""];
+  orders.forEach(o=>{ const parts=o.lines.map(l=>(l.qty>1?l.qty+"× ":"")+l.drink); if(o.extras.length)parts.push("+ "+o.extras.join(", ")); lines.push("• "+o.name+": "+parts.join(", ")); });
+  const t={}; orders.forEach(o=>o.lines.forEach(l=>t[l.drink]=(t[l.drink]||0)+(l.qty||1)));
+  lines.push("","Totals:"); Object.keys(t).sort().forEach(k=>lines.push("  "+t[k]+"× "+k));
+  return lines.join("\n");
+}
+
+/* ---------- WIRE UP ---------- */
+$("addDrink").onclick=addDrink;
+$("newDrink").addEventListener("keydown",e=>{ if(e.key==="Enter") addDrink(); });
+$("addFood").onclick=addFood;
+$("newFood").addEventListener("keydown",e=>{ if(e.key==="Enter") addFood(); });
+$("addLine").onclick=addLine;
+$("saveOrder").onclick=saveOrder;
+$("clearForm").onclick=clearForm;
+$("name").addEventListener("input",renderDrinkSelect);
+$("qty").addEventListener("keydown",e=>{ if(e.key==="Enter") addLine(); });
+$("refreshBtn").onclick=refreshAll;
+$("clearOrders").onclick=async()=>{ if(confirm("Clear ALL current orders for everyone? (Menu is kept.)")){ await DB.clearOrders(); await refreshAll(); } };
+$("copyBtn").onclick=()=>{ const txt=summaryText();
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>flash($("copyBtn"),"Copied ✓"),()=>window.prompt("Copy summary:",txt));
+  else window.prompt("Copy summary:",txt); };
+function flash(btn,msg){ const o=btn.textContent; btn.textContent=msg; setTimeout(()=>btn.textContent=o,1200); }
+
+/* status + connection banner */
+const h2=document.querySelector(".card h2");
+const badge=document.createElement("span");
+badge.className="status "+(USING_SB?"on":"local");
+badge.textContent=USING_SB?"● Shared DB":"● Local only";
+h2.appendChild(badge);
+if(!USING_SB) $("cfgBanner").style.display="block";
+
+await refreshAll();
+if(!drinks.length) $("menuManage").open=true;
+
+/* auto-sync for shared use */
+if(USING_SB) setInterval(refreshAll, 20000);
+</script>
+</body>
+</html>
