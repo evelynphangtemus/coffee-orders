@@ -270,6 +270,20 @@ const DB = {
     const a=lsGet(LK.prefs,[]);
     rows.forEach(r=>{ const m=a.find(x=>x.person===r.person&&x.drink===r.drink); if(m){m.count=r.count;m.name=r.name;} else a.push({...r}); });
     lsSet(LK.prefs,a);
+  },
+  async removePrefs(rows){ // rows: [{person,drink}] — delete specific preferences
+    if(sb){
+      // Delete all prefs for these person+drink combos
+      const deletes=await Promise.all(rows.map(r=>
+        sb.from("preferences").delete().eq("person",r.person).eq("drink",r.drink)
+      ));
+      const errors=deletes.filter(d=>d.error);
+      if(errors.length) throw errors[0].error;
+      return;
+    }
+    const a=lsGet(LK.prefs,[]);
+    rows.forEach(r=>{ const idx=a.findIndex(x=>x.person===r.person&&x.drink===r.drink); if(idx>=0)a.splice(idx,1); });
+    lsSet(LK.prefs,a);
   }
 };
 
@@ -428,12 +442,18 @@ async function saveOrder(){
       await DB.addOrder(fresh);
     }
     // persist preferences to the DB (after the order is added), so the usual is remembered even after orders are cleared
+    // For each person, ONLY record the drinks they just ordered (most recent = current order)
     const k=keyName(name);
     const bumps=fresh.lines.filter(l=>!l.special).map(l=>{
       const cur=prefs.find(p=>p.person===k && p.drink===l.drink);
       return {person:k, drink:l.drink, name, count:(cur?cur.count:0)+(l.qty||1)};
     });
-    if(bumps.length) await DB.bumpPrefs(bumps);
+    // Before bumping, remove ALL old preferences for this person so only current drinks are "latest"
+    if(bumps.length){
+      const oldDrinks=prefs.filter(p=>p.person===k).map(p=>({person:k,drink:p.drink}));
+      if(oldDrinks.length) await DB.removePrefs(oldDrinks);
+      await DB.bumpPrefs(bumps);
+    }
     clearForm(); await refreshAll(); hint("Saved ✓"); setTimeout(()=>hint(""),1500);
   }catch(e){ hint("Save error: "+(e.message||e)); }
   $("saveOrder").disabled=false;
